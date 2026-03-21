@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scrum Roles Matching Game</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+      padding: 16px;
+    }
+
+    header { text-align: center; padding: 16px 0 8px; }
+    header h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.5px; }
+    header p  { color: #94a3b8; margin-top: 4px; font-size: 0.9rem; }
+
+    #score-bar {
+      text-align: center;
+      margin: 10px 0 16px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #score-bar span {
+      background: rgba(255,255,255,0.1);
+      padding: 4px 18px;
+      border-radius: 999px;
+    }
+
+    /* Drop zones */
+    #zones {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .zone {
+      flex: 1 1 220px;
+      max-width: 320px;
+      min-height: 260px;
+      border-radius: 16px;
+      padding: 14px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 2px dashed rgba(255,255,255,0.2);
+      transition: border-color 0.2s, background 0.2s, filter 0.2s;
+    }
+
+    .zone-label {
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.5px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      pointer-events: none; /* never intercept pointer events */
+    }
+
+    .zone[data-role="Developers"]    { background: rgba(59,130,246,0.12);  border-color: #3B82F6; }
+    .zone[data-role="Developers"] .zone-label    { background: rgba(59,130,246,0.25);  color: #93c5fd; }
+
+    .zone[data-role="Product Owner"] { background: rgba(139,92,246,0.12);  border-color: #8B5CF6; }
+    .zone[data-role="Product Owner"] .zone-label { background: rgba(139,92,246,0.25);  color: #c4b5fd; }
+
+    .zone[data-role="Scrum Master"]  { background: rgba(16,185,129,0.12);  border-color: #10B981; }
+    .zone[data-role="Scrum Master"] .zone-label  { background: rgba(16,185,129,0.25);  color: #6ee7b7; }
+
+    .zone.drop-target { border-style: solid; filter: brightness(1.2); }
+
+    /* Card pool */
+    #pool-section { text-align: center; }
+    #pool-section h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+    #card-pool {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      min-height: 60px;
+      padding: 10px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* Cards */
+    .card {
+      background: rgba(255,255,255,0.95);
+      color: #1e293b;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      line-height: 1.45;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+      max-width: 280px;
+      text-align: left;
+      touch-action: none; /* required for pointer events on touch */
+    }
+
+    .card:hover:not(.placed) {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    /* Floating ghost while dragging */
+    .card-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.85;
+      transform: rotate(2deg) scale(1.05);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+      cursor: grabbing;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      line-height: 1.45;
+      background: rgba(255,255,255,0.97);
+      color: #1e293b;
+      max-width: 280px;
+    }
+
+    .card.dragging { opacity: 0.25; pointer-events: none; }
+
+    /* Placed cards */
+    .card.placed {
+      cursor: default;
+    }
+    .card.placed-Developers  { background: #dbeafe; border-left: 4px solid #3B82F6; }
+    .card.placed-ProductOwner { background: #ede9fe; border-left: 4px solid #8B5CF6; }
+    .card.placed-ScrumMaster  { background: #d1fae5; border-left: 4px solid #10B981; }
+
+    @keyframes pop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.12); }
+      70%  { transform: scale(0.95); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%  { transform: translateX(-10px); }
+      40%  { transform: translateX(10px); }
+      60%  { transform: translateX(-7px); }
+      80%  { transform: translateX(7px); }
+    }
+
+    .card.anim-correct {
+      animation: pop 0.4s ease forwards;
+      box-shadow: 0 0 0 3px #22c55e, 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .card.anim-wrong {
+      animation: shake 0.4s ease forwards;
+    }
+
+    /* Win screen */
+    #win-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,30,0.92);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      gap: 14px;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    #win-screen.show { display: flex; }
+    #win-screen h2 { font-size: 2rem; font-weight: 700; }
+    #win-screen p  { color: #94a3b8; font-size: 1rem; max-width: 480px; }
+
+    #win-stats {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .win-stat {
+      background: rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 12px 22px;
+      min-width: 110px;
+    }
+    .win-stat .label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .win-stat .value { font-size: 1.5rem; font-weight: 700; margin-top: 2px; }
+    #win-score-value { font-size: 2.4rem; color: #facc15; }
+
+    #win-answers {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 900px;
+      text-align: left;
+    }
+    .win-role-col {
+      flex: 1 1 220px;
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .win-role-col[data-role="Developers"]    { background: rgba(59,130,246,0.15); border: 1px solid #3B82F6; }
+    .win-role-col[data-role="Product Owner"] { background: rgba(139,92,246,0.15); border: 1px solid #8B5CF6; }
+    .win-role-col[data-role="Scrum Master"]  { background: rgba(16,185,129,0.15); border: 1px solid #10B981; }
+    .win-role-col h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; font-weight: 700; }
+    .win-role-col[data-role="Developers"] h3    { color: #93c5fd; }
+    .win-role-col[data-role="Product Owner"] h3 { color: #c4b5fd; }
+    .win-role-col[data-role="Scrum Master"] h3  { color: #6ee7b7; }
+    .win-role-col ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .win-role-col li { font-size: 0.78rem; color: #e2e8f0; line-height: 1.4; padding: 6px 8px; background: rgba(255,255,255,0.06); border-radius: 6px; }
+
+    #win-mistakes { max-width: 700px; width: 100%; text-align: left; }
+    #win-mistakes h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: #f87171; margin-bottom: 8px; font-weight: 700; }
+    #win-mistakes ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    #win-mistakes li { font-size: 0.78rem; color: #e2e8f0; line-height: 1.4; padding: 8px 10px; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); border-radius: 6px; }
+    #win-mistakes .correct-role { display: inline-block; margin-top: 3px; font-size: 0.7rem; font-weight: 600; opacity: 0.8; }
+    .role-tag-Developers    { color: #93c5fd; }
+    .role-tag-ProductOwner  { color: #c4b5fd; }
+    .role-tag-ScrumMaster   { color: #6ee7b7; }
+
+    #btn-restart {
+      margin-top: 8px;
+      padding: 12px 32px;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, #3B82F6, #8B5CF6);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    #btn-restart:hover { opacity: 0.9; transform: scale(1.04); }
+
+    @media (max-width: 520px) {
+      header h1 { font-size: 1.3rem; }
+      .zone { min-height: 180px; }
+      .card { font-size: 0.78rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Scrum Roles Matching Game</h1>
+  <p>Drag each statement to the correct Scrum role</p>
+</header>
+
+<div id="score-bar">
+  <span id="timer-display">⏱ 0:00</span>
+  <span id="score-display">0 / 12 correct</span>
+  <span id="wrong-display">❌ 0 wrong</span>
+</div>
+
+<div id="zones">
+  <div class="zone" data-role="Developers">
+    <div class="zone-label">Developers</div>
+  </div>
+  <div class="zone" data-role="Product Owner">
+    <div class="zone-label">Product Owner</div>
+  </div>
+  <div class="zone" data-role="Scrum Master">
+    <div class="zone-label">Scrum Master</div>
+  </div>
+</div>
+
+<div id="pool-section">
+  <h2>Statement Cards — Drag to a role above</h2>
+  <div id="card-pool"></div>
+</div>
+
+<div id="win-screen">
+  <div style="font-size:3rem">&#127881;</div>
+  <h2>All 12 Matched!</h2>
+  <div id="win-stats">
+    <div class="win-stat">
+      <div class="label">Time</div>
+      <div class="value" id="win-time">—</div>
+    </div>
+    <div class="win-stat">
+      <div class="label">Wrong drops</div>
+      <div class="value" id="win-wrong">—</div>
+    </div>
+    <div class="win-stat">
+      <div class="label">Score</div>
+      <div class="value" id="win-score-value">—</div>
+    </div>
+  </div>
+  <p style="font-size:0.8rem;margin-top:-6px;">Score = 1000 − (2 × seconds) − (50 × wrong drops), minimum 0</p>
+  <div id="win-mistakes"></div>
+  <div id="win-answers"></div>
+  <button id="btn-restart">Play Again</button>
+</div>
+
+<script>
+  const CARDS = [
+    { text: "Creating a plan for the Sprint, the Sprint Backlog",                                                           role: "Developers" },
+    { text: "Instilling quality by adhering to a Definition of Done",                                                       role: "Developers" },
+    { text: "Adapting their plan each day toward the Sprint Goal",                                                          role: "Developers" },
+    { text: "Holding each other accountable as professionals",                                                              role: "Developers" },
+    { text: "Developing and explicitly communicating the Product Goal",                                                     role: "Product Owner" },
+    { text: "Creating and clearly communicating Product Backlog items",                                                     role: "Product Owner" },
+    { text: "Ordering Product Backlog items",                                                                               role: "Product Owner" },
+    { text: "Ensuring that the Product Backlog is transparent, visible and understood",                                     role: "Product Owner" },
+    { text: "Coaching the team members in self-management and cross-functionality",                                         role: "Scrum Master" },
+    { text: "Causing the removal of impediments to the Scrum Team\u2019s progress",                                        role: "Scrum Master" },
+    { text: "Ensuring that all Scrum events take place and are positive, productive, and kept within the timebox",          role: "Scrum Master" },
+    { text: "Leading, training, and coaching the organization in its Scrum adoption",                                       role: "Scrum Master" },
+  ];
+
+  // ── Session storage (anti-cheat) ─────────────────────────────────────────────
+  const STORAGE_KEY = 'scrum_game_v1';
+
+  function saveState() {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+      startTime,
+      wrongCount,
+      wrongCards:  [...wrongCards],
+      cardOrder:   cards.map(c => c.id),
+      placedCards: cards.filter(c => c.placed).map(c => c.id),
+    }));
+  }
+
+  function clearState() {
+    sessionStorage.removeItem(STORAGE_KEY);
+  }
+
+  function loadState() {
+    try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY)); }
+    catch { return null; }
+  }
+
+  // ── State ────────────────────────────────────────────────────────────────────
+  let cards = [];
+  let correctCount = 0;
+
+  // Timer / scoring state
+  let startTime     = null;  // Date.now() when first drag begins
+  let elapsedSeconds = 0;
+  let wrongCount    = 0;
+  let timerInterval = null;
+  let wrongCards    = new Set();  // card IDs ever dropped incorrectly
+
+  // Drag state
+  let dragId   = null;  // card id being dragged
+  let ghost    = null;  // floating ghost element
+  let originEl = null;  // original card element
+  let offsetX  = 0, offsetY = 0;
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function roleKey(role) {
+    return role.replace(/\s+/g, '');  // "Product Owner" → "ProductOwner"
+  }
+
+  function zoneFor(role) {
+    return document.querySelector(`.zone[data-role="${role}"]`);
+  }
+
+  function formatTime(secs) {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function updateScore() {
+    document.getElementById('score-display').textContent = `${correctCount} / 12 correct`;
+  }
+
+  function updateWrong() {
+    document.getElementById('wrong-display').textContent = `❌ ${wrongCount} wrong`;
+  }
+
+  function startTimer() {
+    if (startTime !== null) return;  // already running
+    startTime = Date.now();
+    timerInterval = setInterval(() => {
+      elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+      document.getElementById('timer-display').textContent = `⏱ ${formatTime(elapsedSeconds)}`;
+    }, 500);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    if (startTime !== null) {
+      elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    }
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+  function init() {
+    clearState();
+    cards = shuffle(CARDS.map((c, i) => ({ ...c, id: i, placed: false })));
+    correctCount = 0;
+    dragId = ghost = originEl = null;
+
+    // Reset timer & scoring
+    clearInterval(timerInterval);
+    timerInterval = null;
+    startTime = null;
+    elapsedSeconds = 0;
+    wrongCount = 0;
+    wrongCards = new Set();
+    document.getElementById('timer-display').textContent = '⏱ 0:00';
+    updateWrong();
+
+    document.querySelectorAll('.zone').forEach(z => {
+      const label = z.querySelector('.zone-label');
+      z.innerHTML = '';
+      z.appendChild(label);
+    });
+
+    const pool = document.getElementById('card-pool');
+    pool.innerHTML = '';
+    cards.forEach(c => pool.appendChild(makeCard(c)));
+
+    updateScore();
+    document.getElementById('win-screen').classList.remove('show');
+  }
+
+  // ── Card creation ─────────────────────────────────────────────────────────────
+  function makeCard(cardData) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.textContent = cardData.text;
+    el.dataset.id = cardData.id;
+    el.addEventListener('pointerdown', onPointerDown);
+    return el;
+  }
+
+  // ── Pointer drag ──────────────────────────────────────────────────────────────
+  function onPointerDown(e) {
+    // Only main button (left click / first touch)
+    if (e.button !== undefined && e.button !== 0) return;
+
+    const id = parseInt(e.currentTarget.dataset.id);
+    const card = cards.find(c => c.id === id);
+    if (!card || card.placed) return;
+
+    e.preventDefault();
+
+    startTimer();  // no-op if already running
+
+    dragId   = id;
+    originEl = e.currentTarget;
+
+    const rect = originEl.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+
+    // Create ghost
+    ghost = document.createElement('div');
+    ghost.className = 'card-ghost';
+    ghost.textContent = originEl.textContent;
+    ghost.style.width = rect.width + 'px';
+    positionGhost(e.clientX, e.clientY);
+    document.body.appendChild(ghost);
+
+    originEl.classList.add('dragging');
+
+    // Capture all pointer events globally
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup',   onPointerUp);
+    document.addEventListener('pointercancel', cancelDrag);
+  }
+
+  function onPointerMove(e) {
+    if (!ghost) return;
+    positionGhost(e.clientX, e.clientY);
+
+    // Highlight zone under cursor (hide ghost briefly via pointer-events:none, already set)
+    const el   = document.elementFromPoint(e.clientX, e.clientY);
+    const zone = el ? el.closest('.zone') : null;
+
+    document.querySelectorAll('.zone').forEach(z => z.classList.remove('drop-target'));
+    if (zone) zone.classList.add('drop-target');
+  }
+
+  function onPointerUp(e) {
+    if (!ghost) return;
+
+    // Find zone under release point
+    ghost.style.display = 'none';  // temporarily hide so elementFromPoint works
+    const el   = document.elementFromPoint(e.clientX, e.clientY);
+    const zone = el ? el.closest('.zone') : null;
+    ghost.style.display = '';
+
+    endDrag();
+
+    if (zone) {
+      handleDrop(dragId, zone.dataset.role, zone);
+    }
+    dragId = null;
+  }
+
+  function cancelDrag() {
+    endDrag();
+    dragId = null;
+  }
+
+  function endDrag() {
+    document.querySelectorAll('.zone').forEach(z => z.classList.remove('drop-target'));
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerup',   onPointerUp);
+    document.removeEventListener('pointercancel', cancelDrag);
+
+    if (ghost) { ghost.remove(); ghost = null; }
+    if (originEl) { originEl.classList.remove('dragging'); originEl = null; }
+  }
+
+  function positionGhost(cx, cy) {
+    ghost.style.left = (cx - offsetX) + 'px';
+    ghost.style.top  = (cy - offsetY) + 'px';
+  }
+
+  // ── Drop logic ────────────────────────────────────────────────────────────────
+  function handleDrop(cardId, targetRole, zoneEl) {
+    const card   = cards.find(c => c.id === cardId);
+    if (!card || card.placed) return;
+
+    const cardEl = document.querySelector(`.card[data-id="${cardId}"]`);
+    if (!cardEl) return;
+
+    if (card.role === targetRole) {
+      card.placed = true;
+      correctCount++;
+
+      cardEl.classList.add('placed', `placed-${roleKey(targetRole)}`, 'anim-correct');
+      cardEl.removeEventListener('pointerdown', onPointerDown);
+      zoneEl.appendChild(cardEl);
+      updateScore();
+
+      cardEl.addEventListener('animationend', () => cardEl.classList.remove('anim-correct'), { once: true });
+      saveState();
+      if (correctCount === 12) setTimeout(showWinScreen, 600);
+    } else {
+      wrongCount++;
+      wrongCards.add(card.id);
+      updateWrong();
+      cardEl.classList.add('anim-wrong');
+      cardEl.addEventListener('animationend', () => cardEl.classList.remove('anim-wrong'), { once: true });
+      saveState();
+    }
+  }
+
+  function showWinScreen() {
+    stopTimer();
+    clearState();
+
+    const timePenalty  = elapsedSeconds * 2;
+    const wrongPenalty = wrongCount * 50;
+    const finalScore   = Math.max(0, 1000 - timePenalty - wrongPenalty);
+
+    document.getElementById('win-time').textContent  = formatTime(elapsedSeconds);
+    document.getElementById('win-wrong').textContent = wrongCount;
+    document.getElementById('win-score-value').textContent = finalScore;
+
+    // Build wrong-cards section
+    const mistakesEl = document.getElementById('win-mistakes');
+    mistakesEl.innerHTML = '';
+    if (wrongCards.size > 0) {
+      const h3 = document.createElement('h3');
+      h3.textContent = `Cards you got wrong (${wrongCards.size})`;
+      mistakesEl.appendChild(h3);
+      const ul = document.createElement('ul');
+      wrongCards.forEach(id => {
+        const cardData = CARDS[id];
+        const li = document.createElement('li');
+        const tag = `role-tag-${roleKey(cardData.role)}`;
+        li.innerHTML = `${cardData.text}<br><span class="correct-role ${tag}">✓ ${cardData.role}</span>`;
+        ul.appendChild(li);
+      });
+      mistakesEl.appendChild(ul);
+    }
+
+    // Build correct-answers columns
+    const container = document.getElementById('win-answers');
+    container.innerHTML = '';
+    const roles = ['Developers', 'Product Owner', 'Scrum Master'];
+    roles.forEach(role => {
+      const col = document.createElement('div');
+      col.className = 'win-role-col';
+      col.dataset.role = role;
+      const h3 = document.createElement('h3');
+      h3.textContent = role;
+      col.appendChild(h3);
+      const ul = document.createElement('ul');
+      CARDS.filter(c => c.role === role).forEach(c => {
+        const li = document.createElement('li');
+        li.textContent = c.text;
+        ul.appendChild(li);
+      });
+      col.appendChild(ul);
+      container.appendChild(col);
+    });
+
+    document.getElementById('win-screen').classList.add('show');
+  }
+
+  // ── Play Again ────────────────────────────────────────────────────────────────
+  document.getElementById('btn-restart').addEventListener('click', init);
+
+  // Deter accidental navigation during an active game
+  window.addEventListener('beforeunload', e => {
+    if (startTime !== null && correctCount < 12) e.preventDefault();
+  });
+
+  // ── Startup ───────────────────────────────────────────────────────────────────
+  function restoreOrInit() {
+    const saved = loadState();
+    if (!saved) { init(); return; }
+
+    // Reconstruct cards array in saved order
+    cards = saved.cardOrder.map(id => ({ ...CARDS[id], id, placed: saved.placedCards.includes(id) }));
+
+    // Restore counters
+    correctCount = saved.placedCards.length;
+    wrongCount   = saved.wrongCount;
+    wrongCards   = new Set(saved.wrongCards);
+
+    // Rebuild DOM — zones first
+    document.querySelectorAll('.zone').forEach(z => {
+      const label = z.querySelector('.zone-label');
+      z.innerHTML = '';
+      z.appendChild(label);
+    });
+
+    // Pool for unplaced cards
+    const pool = document.getElementById('card-pool');
+    pool.innerHTML = '';
+
+    cards.forEach(c => {
+      const el = makeCard(c);
+      if (c.placed) {
+        el.classList.add('placed', `placed-${roleKey(c.role)}`);
+        el.removeEventListener('pointerdown', onPointerDown);
+        zoneFor(c.role).appendChild(el);
+      } else {
+        pool.appendChild(el);
+      }
+    });
+
+    // Restore timer (keep accumulating from original startTime)
+    startTime = saved.startTime;
+    timerInterval = setInterval(() => {
+      elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+      document.getElementById('timer-display').textContent = `⏱ ${formatTime(elapsedSeconds)}`;
+    }, 500);
+
+    updateScore();
+    updateWrong();
+    document.getElementById('win-screen').classList.remove('show');
+  }
+
+  restoreOrInit();
+</script>
+</body>
+</html>
