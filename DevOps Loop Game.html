@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevOps Infinity Loop Game</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+      padding: 16px;
+    }
+
+    header { text-align: center; padding: 16px 0 8px; }
+    header h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.5px; }
+    header p  { color: #94a3b8; margin-top: 4px; font-size: 0.9rem; }
+
+    #score-bar {
+      text-align: center;
+      margin: 10px 0 16px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #score-bar span {
+      background: rgba(255,255,255,0.1);
+      padding: 4px 18px;
+      border-radius: 999px;
+    }
+    #score-display {
+      font-size: 1.3rem;
+      font-weight: 700;
+      background: rgba(255,255,255,0.15);
+    }
+
+    #phase-indicator { text-align: center; margin-bottom: 16px; }
+    .phase-badge {
+      display: inline-block;
+      padding: 4px 16px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .phase-badge.p1 { background: rgba(99,102,241,0.2); border: 1px solid #6366f1; color: #a5b4fc; }
+    .phase-badge.p2 { background: rgba(16,185,129,0.2); border: 1px solid #10B981; color: #6ee7b7; }
+
+    /* ── Phase 1 ─────────────────────────────────── */
+    #phase1-slots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .slot {
+      flex: 0 0 112px;
+      width: 112px;
+      min-height: 80px;
+      border-radius: 12px;
+      border: 2px dashed rgba(255,255,255,0.2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px;
+      transition: border-color 0.2s, background 0.2s, filter 0.2s;
+    }
+    .slot-num {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      pointer-events: none;
+    }
+    .slot.drop-target { border-style: solid; filter: brightness(1.3); }
+    .slot.filled      { border-style: solid; }
+
+    .step-card {
+      background: rgba(255,255,255,0.95);
+      color: #1e293b;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+      text-align: center;
+      touch-action: none;
+      white-space: nowrap;
+      width: 112px;
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slot .step-card { width: 100%; min-height: unset; display: block; }
+    .step-card:hover:not(.placed) {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+    .step-card.dragging { opacity: 0.25; pointer-events: none; }
+    .step-card.placed   { cursor: default; box-shadow: none; }
+
+    /* ── Phase 2 ─────────────────────────────────── */
+    #phase2 { display: none; }
+    #phase2.active { display: block; }
+
+    #phase2-zones {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .zone2 {
+      flex: 1 1 120px;
+      max-width: 190px;
+      min-height: 130px;
+      border-radius: 12px;
+      padding: 10px 8px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      border: 2px dashed rgba(255,255,255,0.2);
+      transition: border-color 0.2s, background 0.2s, filter 0.2s;
+    }
+    .zone2-label {
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.8rem;
+      letter-spacing: 0.5px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      pointer-events: none;
+      margin-bottom: 2px;
+    }
+    .zone2.drop-target { border-style: solid; filter: brightness(1.2); }
+
+    .tool-chip {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      color: #e2e8f0;
+      pointer-events: none;
+      line-height: 1.3;
+      border-left-width: 3px;
+      border-left-style: solid;
+    }
+
+    .tool-card {
+      background: rgba(255,255,255,0.95);
+      color: #1e293b;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      line-height: 1.3;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.3s;
+      max-width: 280px;
+      text-align: left;
+      touch-action: none;
+      position: relative;
+    }
+    .tool-card:hover:not(.complete) {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+    .tool-examples {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 400;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .tool-progress {
+      display: inline-block;
+      margin-top: 5px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(99,102,241,0.12);
+      color: #6366f1;
+    }
+    .tool-card.dragging { opacity: 0.25; pointer-events: none; }
+    .tool-card.complete { opacity: 0.45; cursor: default; }
+    .tool-card.complete .tool-progress { background: rgba(16,185,129,0.12); color: #10B981; }
+
+    /* Ghost */
+    .card-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.88;
+      transform: rotate(2deg) scale(1.05);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.875rem;
+      font-weight: 700;
+      background: rgba(255,255,255,0.97);
+      color: #1e293b;
+      max-width: 240px;
+      white-space: nowrap;
+    }
+
+    /* Shared pool */
+    .pool-section { text-align: center; margin-bottom: 16px; }
+    .pool-section h2 {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+    .card-pool {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      min-height: 60px;
+      padding: 16px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* Animations */
+    @keyframes pop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.1); }
+      70%  { transform: scale(0.96); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%  { transform: translateX(-8px); }
+      40%  { transform: translateX(8px); }
+      60%  { transform: translateX(-6px); }
+      80%  { transform: translateX(6px); }
+    }
+    .anim-correct { animation: pop   0.4s ease forwards; box-shadow: 0 0 0 3px #22c55e, 0 4px 12px rgba(0,0,0,0.25) !important; }
+    .anim-wrong   { animation: shake 0.4s ease forwards; }
+
+    /* Phase transition */
+    #phase-transition {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,30,0.9);
+      z-index: 400;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      text-align: center;
+      padding: 24px;
+    }
+    #phase-transition.show { display: flex; }
+    #phase-transition h2 { font-size: 1.8rem; font-weight: 700; }
+    #phase-transition p  { color: #94a3b8; font-size: 0.95rem; }
+
+    /* Phase 1 score screen */
+    #p1-score-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,30,0.92);
+      z-index: 450;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      gap: 14px;
+      padding: 24px;
+    }
+    #p1-score-screen.show { display: flex; }
+    #p1-score-screen h2 { font-size: 2rem; font-weight: 700; }
+    #p1-score-screen p  { color: #94a3b8; }
+    #p1-stats { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+    #btn-phase2 {
+      margin-top: 8px;
+      padding: 12px 32px;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, #6366f1, #10B981);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    #btn-phase2:hover { opacity: 0.9; transform: scale(1.04); }
+
+    /* Win screen */
+    #win-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,30,0.92);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      gap: 14px;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    #win-screen.show { display: flex; }
+    #win-screen h2 { font-size: 2rem; font-weight: 700; }
+    #win-screen p  { color: #94a3b8; max-width: 480px; }
+    #win-stats { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+    .win-stat { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 22px; min-width: 110px; }
+    .win-stat .label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .win-stat .value { font-size: 1.5rem; font-weight: 700; margin-top: 2px; }
+    #win-score-value { font-size: 2.4rem; color: #facc15; }
+
+    #btn-restart {
+      margin-top: 8px;
+      padding: 12px 32px;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, #6366f1, #10B981);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    #btn-restart:hover { opacity: 0.9; transform: scale(1.04); }
+
+    @media (max-width: 520px) {
+      header h1 { font-size: 1.3rem; }
+      .slot  { min-height: 68px; flex-basis: 88px; width: 88px; }
+      .step-card { width: 88px; min-height: 58px; }
+      .zone2 { min-height: 100px; }
+      .tool-card { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>DevOps Infinity Loop</h1>
+  <p>Phase 1: Put the eight steps in order &nbsp;&middot;&nbsp; Phase 2: Match the tools to their steps</p>
+</header>
+
+<div id="score-bar">
+  <span id="timer-display"></span>
+  <span id="score-display"></span>
+  <span id="wrong-display"></span>
+</div>
+
+<div id="phase-indicator">
+  <span class="phase-badge" id="phase-badge"></span>
+</div>
+
+<!-- PHASE 1 -->
+<section id="phase1">
+  <div id="phase1-slots"></div>
+  <div class="pool-section">
+    <h2>Drag each step to its position in the loop</h2>
+    <div class="card-pool" id="phase1-pool"></div>
+  </div>
+</section>
+
+<!-- PHASE 2 -->
+<section id="phase2">
+  <div id="phase2-zones"></div>
+  <div class="pool-section">
+    <h2>Drag each tool to its step(s) &mdash; some tools belong to more than one step</h2>
+    <div class="card-pool" id="phase2-pool"></div>
+  </div>
+</section>
+
+<!-- Phase transition overlay -->
+<div id="phase-transition">
+  <div style="font-size:3rem">&#127881;</div>
+  <h2>Phase 1 Complete!</h2>
+  <p>You know the loop. Now match the tools to their steps&hellip;</p>
+</div>
+
+<!-- Phase 1 score screen -->
+<div id="p1-score-screen">
+  <div style="font-size:2.5rem">&#127881;</div>
+  <h2>Phase 1 Complete!</h2>
+  <div id="p1-stats">
+    <div class="win-stat">
+      <div class="label">Time</div>
+      <div class="value" id="p1-time">&#8212;</div>
+    </div>
+    <div class="win-stat">
+      <div class="label">Wrong drops</div>
+      <div class="value" id="p1-wrong">&#8212;</div>
+    </div>
+    <div class="win-stat">
+      <div class="label">Score</div>
+      <div class="value" id="p1-score-val" style="color:#facc15">&#8212;</div>
+    </div>
+  </div>
+  <p>Now match the tools to their steps&hellip;</p>
+  <button id="btn-phase2">Continue to Phase 2 &rarr;</button>
+</div>
+
+<!-- Win screen -->
+<div id="win-screen">
+  <div style="font-size:3rem">&#127942;</div>
+  <h2>DevOps Master!</h2>
+  <div id="win-stats">
+    <div class="win-stat">
+      <div class="label">Phase 1 Score</div>
+      <div class="value" id="win-p1-score">&#8212;</div>
+    </div>
+    <div class="win-stat">
+      <div class="label">Phase 2 Time</div>
+      <div class="value" id="win-time">&#8212;</div>
+    </div>
+    <div class="win-stat">
+      <div class="label">P2 Wrong drops</div>
+      <div class="value" id="win-wrong">&#8212;</div>
+    </div>
+    <div class="win-stat">
+      <div class="label">Phase 2 Score</div>
+      <div class="value" id="win-score-value">&#8212;</div>
+    </div>
+  </div>
+  <div style="margin-top:4px">
+    <div style="font-size:0.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Total Score</div>
+    <div id="win-total" style="font-size:2.8rem;font-weight:700;color:#facc15">&#8212;</div>
+  </div>
+  <p style="font-size:0.8rem;margin-top:-6px;">Per phase: 1000 &minus; (2 &times; seconds) &minus; (50 &times; wrong drops), minimum 0</p>
+  <button id="btn-restart">Play Again</button>
+</div>
+
+<script>
+  const SVG_CLOCK = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;display:inline-block"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+  const SVG_X     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;display:inline-block"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+  const STEPS = ["Plan","Code","Build","Test","Release","Deploy","Operate","Monitor"];
+
+  const STEP_META = {
+    Plan:    { color: "#6366f1", bg: "rgba(99,102,241,0.15)",  text: "#a5b4fc", placed: "rgba(99,102,241,0.82)"  },
+    Code:    { color: "#8B5CF6", bg: "rgba(139,92,246,0.15)", text: "#c4b5fd", placed: "rgba(139,92,246,0.82)" },
+    Build:   { color: "#3B82F6", bg: "rgba(59,130,246,0.15)", text: "#93c5fd", placed: "rgba(59,130,246,0.82)"  },
+    Test:    { color: "#06b6d4", bg: "rgba(6,182,212,0.15)",  text: "#67e8f9", placed: "rgba(6,182,212,0.82)"   },
+    Release: { color: "#10B981", bg: "rgba(16,185,129,0.15)", text: "#6ee7b7", placed: "rgba(16,185,129,0.82)"  },
+    Deploy:  { color: "#f59e0b", bg: "rgba(245,158,11,0.15)", text: "#fcd34d", placed: "rgba(245,158,11,0.82)"  },
+    Operate: { color: "#f97316", bg: "rgba(249,115,22,0.15)", text: "#fdba74", placed: "rgba(249,115,22,0.82)"  },
+    Monitor: { color: "#ef4444", bg: "rgba(239,68,68,0.15)",  text: "#fca5a5", placed: "rgba(239,68,68,0.82)"   },
+  };
+
+  const TOOLS_DATA = [
+    { text: "Issue Tracker",           examples: "Jira, Azure Boards, Trello",   steps: ["Plan"] },
+    { text: "Version Control",         examples: "Git, GitHub, GitLab",           steps: ["Code"] },
+    { text: "Code Quality Scanner",    examples: "SonarQube, ESLint",             steps: ["Code", "Test"] },
+    { text: "CI/CD Pipeline",          examples: "Jenkins, GitHub Actions",       steps: ["Build", "Test", "Release"] },
+    { text: "Containers",              examples: "Docker, Podman",                steps: ["Build", "Deploy"] },
+    { text: "Test Automation",         examples: "Selenium, Cypress, JUnit",      steps: ["Test"] },
+    { text: "Artifact Repository",     examples: "Nexus, Artifactory",            steps: ["Build", "Release"] },
+    { text: "Infrastructure Provisioning", examples: "Terraform, Pulumi",          steps: ["Build", "Deploy"] },
+    { text: "Configuration Management",    examples: "Ansible, Chef, Puppet",      steps: ["Deploy", "Operate"] },
+    { text: "Container Orchestration", examples: "Kubernetes, OpenShift",         steps: ["Deploy", "Operate"] },
+    { text: "Monitoring & Alerting",   examples: "Grafana, Prometheus, Datadog",  steps: ["Operate", "Monitor"] },
+  ];
+
+  const TOTAL_P1 = STEPS.length;
+  const TOTAL_P2 = TOOLS_DATA.reduce((s, t) => s + t.steps.length, 0);
+
+  // ── State ─────────────────────────────────────────────────
+  let phase = 1;
+  let p1Correct = 0, p2Correct = 0, wrongCount = 0;
+  let startTime = null, elapsedSeconds = 0, timerInterval = null;
+  let p1ElapsedSeconds = 0, p1WrongCount = 0;
+  let stepCards = [];
+  let tools = [];
+  let dragType = null, dragId = null, ghost = null, originEl = null;
+  let offsetX = 0, offsetY = 0;
+
+  // ── Helpers ───────────────────────────────────────────────
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function fmt(secs) {
+    return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  }
+
+  function startTimer() {
+    if (startTime !== null) return;
+    startTime = Date.now();
+    timerInterval = setInterval(() => {
+      elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+      document.getElementById('timer-display').innerHTML = `${SVG_CLOCK} ${fmt(elapsedSeconds)}`;
+    }, 500);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    if (startTime) elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+  }
+
+  function updateBar() {
+    if (phase === 1) {
+      document.getElementById('score-display').textContent = `${p1Correct} / ${TOTAL_P1} ordered`;
+    } else {
+      document.getElementById('score-display').textContent = `${p2Correct} / ${TOTAL_P2} placed`;
+    }
+    document.getElementById('wrong-display').innerHTML = `${SVG_X} ${wrongCount} wrong`;
+  }
+
+  // ── Init ──────────────────────────────────────────────────
+  function init() {
+    phase = 1;
+    p1Correct = p2Correct = wrongCount = 0;
+    dragId = ghost = originEl = null; dragType = null;
+    clearInterval(timerInterval); timerInterval = null;
+    startTime = null; elapsedSeconds = 0;
+
+    document.getElementById('timer-display').innerHTML = `${SVG_CLOCK} 0:00`;
+    p1ElapsedSeconds = 0; p1WrongCount = 0;
+    document.getElementById('win-screen').classList.remove('show');
+    document.getElementById('p1-score-screen').classList.remove('show');
+    document.getElementById('phase2').classList.remove('active');
+    document.getElementById('phase1').style.display = '';
+
+    const badge = document.getElementById('phase-badge');
+    badge.className = 'phase-badge p1';
+    badge.textContent = 'Phase 1 — Order the Steps';
+
+    buildPhase1();
+    updateBar();
+  }
+
+  // ── Phase 1 ───────────────────────────────────────────────
+  function buildPhase1() {
+    const slotsEl = document.getElementById('phase1-slots');
+    slotsEl.innerHTML = '';
+    for (let i = 0; i < STEPS.length; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.dataset.order = String(i + 1);
+      const num = document.createElement('div');
+      num.className = 'slot-num';
+      num.textContent = `Step ${i + 1}`;
+      slot.appendChild(num);
+      slotsEl.appendChild(slot);
+    }
+
+    stepCards = shuffle(STEPS.map((name, i) => ({ id: i, name, placed: false })));
+    const pool = document.getElementById('phase1-pool');
+    pool.innerHTML = '';
+    stepCards.forEach(c => pool.appendChild(makeStepCard(c)));
+  }
+
+  function makeStepCard(c) {
+    const el = document.createElement('div');
+    el.className = 'step-card';
+    el.textContent = c.name;
+    el.dataset.id   = c.id;
+    el.dataset.type = 'step';
+    el.addEventListener('pointerdown', onPointerDown);
+    return el;
+  }
+
+  function handleStepDrop(cardId, slotEl) {
+    const card = stepCards.find(c => c.id === cardId);
+    if (!card || card.placed || slotEl.classList.contains('filled')) return;
+
+    const cardEl = document.querySelector(`.step-card[data-id="${cardId}"]`);
+    if (!cardEl) return;
+
+    const correctOrder = STEPS.indexOf(card.name) + 1;
+    const targetOrder  = parseInt(slotEl.dataset.order);
+
+    if (correctOrder === targetOrder) {
+      card.placed = true;
+      p1Correct++;
+
+      const meta = STEP_META[card.name];
+      cardEl.style.background = meta.placed;
+      cardEl.style.color      = '#fff';
+      cardEl.classList.add('placed', 'anim-correct');
+      cardEl.removeEventListener('pointerdown', onPointerDown);
+
+      slotEl.style.borderColor = meta.color;
+      slotEl.style.background  = meta.bg;
+      slotEl.classList.add('filled');
+      slotEl.appendChild(cardEl);
+
+      cardEl.addEventListener('animationend', () => cardEl.classList.remove('anim-correct'), { once: true });
+      updateBar();
+      if (p1Correct === TOTAL_P1) setTimeout(completePhase1, 600);
+    } else {
+      wrongCount++;
+      cardEl.classList.add('anim-wrong');
+      cardEl.addEventListener('animationend', () => cardEl.classList.remove('anim-wrong'), { once: true });
+      updateBar();
+    }
+  }
+
+  function completePhase1() {
+    stopTimer();
+    p1ElapsedSeconds = elapsedSeconds;
+    p1WrongCount = wrongCount;
+    const p1Score = Math.max(0, 1000 - p1ElapsedSeconds * 2 - p1WrongCount * 50);
+    document.getElementById('p1-time').textContent      = fmt(p1ElapsedSeconds);
+    document.getElementById('p1-wrong').textContent     = p1WrongCount;
+    document.getElementById('p1-score-val').textContent = p1Score;
+    document.getElementById('p1-score-screen').classList.add('show');
+  }
+
+  // ── Phase 2 ───────────────────────────────────────────────
+  function startPhase2() {
+    phase = 2;
+    clearInterval(timerInterval); timerInterval = null;
+    startTime = null; elapsedSeconds = 0; wrongCount = 0;
+    document.getElementById('timer-display').innerHTML = `${SVG_CLOCK} 0:00`;
+    document.getElementById('phase1').style.display = 'none';
+    document.getElementById('phase2').classList.add('active');
+
+    const badge = document.getElementById('phase-badge');
+    badge.className = 'phase-badge p2';
+    badge.textContent = 'Phase 2 — Match the Tools';
+
+    buildPhase2();
+    updateBar();
+  }
+
+  function buildPhase2() {
+    const zonesEl = document.getElementById('phase2-zones');
+    zonesEl.innerHTML = '';
+    STEPS.forEach(step => {
+      const meta = STEP_META[step];
+      const zone = document.createElement('div');
+      zone.className = 'zone2';
+      zone.dataset.step     = step;
+      zone.style.background = meta.bg;
+      zone.style.borderColor = meta.color;
+
+      const label = document.createElement('div');
+      label.className   = 'zone2-label';
+      label.textContent = step;
+      label.style.background = meta.bg.replace('0.15', '0.3');
+      label.style.color      = meta.text;
+      zone.appendChild(label);
+
+      zonesEl.appendChild(zone);
+    });
+
+    tools = shuffle(TOOLS_DATA.map((t, i) => ({ ...t, id: i, placedIn: [] })));
+    const pool = document.getElementById('phase2-pool');
+    pool.innerHTML = '';
+    tools.forEach(t => pool.appendChild(makeToolCard(t)));
+  }
+
+  function makeToolCard(t) {
+    const el = document.createElement('div');
+    el.className    = 'tool-card';
+    el.dataset.id   = t.id;
+    el.dataset.type = 'tool';
+    const stepsLabel = t.steps.length > 1 ? `${t.steps.length} steps` : '1 step';
+    el.innerHTML = `${t.text}<span class="tool-examples">${t.examples}</span><span class="tool-progress">${stepsLabel}</span>`;
+    el.addEventListener('pointerdown', onPointerDown);
+    return el;
+  }
+
+  function refreshToolCard(tool) {
+    const el = document.querySelector(`.tool-card[data-id="${tool.id}"]`);
+    if (!el) return;
+    const remaining = tool.steps.length - tool.placedIn.length;
+    const prog = el.querySelector('.tool-progress');
+    if (remaining === 0) {
+      el.classList.add('complete');
+      el.removeEventListener('pointerdown', onPointerDown);
+      prog.textContent = 'Complete';
+    } else {
+      prog.textContent = `${remaining} step${remaining > 1 ? 's' : ''} left`;
+    }
+  }
+
+  function handleToolDrop(toolId, zoneEl) {
+    const tool = tools.find(t => t.id === toolId);
+    if (!tool) return;
+
+    const toolEl = document.querySelector(`.tool-card[data-id="${toolId}"]`);
+    if (!toolEl || toolEl.classList.contains('complete')) return;
+
+    const step = zoneEl.dataset.step;
+
+    if (tool.placedIn.includes(step)) {
+      // Already placed here — shake without penalising
+      toolEl.classList.add('anim-wrong');
+      toolEl.addEventListener('animationend', () => toolEl.classList.remove('anim-wrong'), { once: true });
+      return;
+    }
+
+    if (tool.steps.includes(step)) {
+      tool.placedIn.push(step);
+      p2Correct++;
+
+      const meta = STEP_META[step];
+      const chip = document.createElement('div');
+      chip.className        = 'tool-chip anim-correct';
+      chip.textContent      = tool.text;
+      chip.style.borderLeftColor = meta.color;
+      chip.style.color      = meta.text;
+      zoneEl.appendChild(chip);
+      chip.addEventListener('animationend', () => chip.classList.remove('anim-correct'), { once: true });
+
+      refreshToolCard(tool);
+      updateBar();
+      if (p2Correct === TOTAL_P2) setTimeout(showWin, 600);
+    } else {
+      wrongCount++;
+      toolEl.classList.add('anim-wrong');
+      toolEl.addEventListener('animationend', () => toolEl.classList.remove('anim-wrong'), { once: true });
+      updateBar();
+    }
+  }
+
+  // ── Drag system ───────────────────────────────────────────
+  function onPointerDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+
+    const type = e.currentTarget.dataset.type;
+    const id   = parseInt(e.currentTarget.dataset.id);
+
+    if (type === 'step') {
+      const c = stepCards.find(c => c.id === id);
+      if (!c || c.placed) return;
+    }
+    if (type === 'tool') {
+      const t = tools.find(t => t.id === id);
+      if (!t || t.placedIn.length === t.steps.length) return;
+    }
+
+    e.preventDefault();
+    startTimer();
+
+    dragType = type; dragId = id;
+    originEl = e.currentTarget;
+
+    const rect = originEl.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+
+    ghost = document.createElement('div');
+    ghost.className = 'card-ghost';
+    // Grab first text node for the ghost label
+    const firstNode = originEl.childNodes[0];
+    ghost.textContent = firstNode && firstNode.nodeType === Node.TEXT_NODE
+      ? firstNode.textContent.trim()
+      : originEl.textContent.trim();
+    ghost.style.width = Math.min(rect.width, 240) + 'px';
+    positionGhost(e.clientX, e.clientY);
+    document.body.appendChild(ghost);
+
+    originEl.classList.add('dragging');
+    document.addEventListener('pointermove',   onPointerMove);
+    document.addEventListener('pointerup',     onPointerUp);
+    document.addEventListener('pointercancel', cancelDrag);
+  }
+
+  function onPointerMove(e) {
+    if (!ghost) return;
+    positionGhost(e.clientX, e.clientY);
+    const el   = document.elementFromPoint(e.clientX, e.clientY);
+    const zone = el ? (el.closest('.slot') || el.closest('.zone2')) : null;
+    document.querySelectorAll('.slot, .zone2').forEach(z => z.classList.remove('drop-target'));
+    if (zone) zone.classList.add('drop-target');
+  }
+
+  function onPointerUp(e) {
+    if (!ghost) return;
+    ghost.style.display = 'none';
+    const el   = document.elementFromPoint(e.clientX, e.clientY);
+    const slot = el ? el.closest('.slot')  : null;
+    const zone = el ? el.closest('.zone2') : null;
+    ghost.style.display = '';
+
+    const savedType = dragType;
+    const savedId   = dragId;
+    endDrag();
+
+    if (savedType === 'step' && slot) handleStepDrop(savedId, slot);
+    if (savedType === 'tool' && zone) handleToolDrop(savedId, zone);
+  }
+
+  function cancelDrag() { endDrag(); }
+
+  function endDrag() {
+    document.querySelectorAll('.slot, .zone2').forEach(z => z.classList.remove('drop-target'));
+    document.removeEventListener('pointermove',   onPointerMove);
+    document.removeEventListener('pointerup',     onPointerUp);
+    document.removeEventListener('pointercancel', cancelDrag);
+    if (ghost)    { ghost.remove(); ghost = null; }
+    if (originEl) { originEl.classList.remove('dragging'); originEl = null; }
+    dragType = null; dragId = null;
+  }
+
+  function positionGhost(cx, cy) {
+    ghost.style.left = (cx - offsetX) + 'px';
+    ghost.style.top  = (cy - offsetY) + 'px';
+  }
+
+  // ── Win ───────────────────────────────────────────────────
+  function showWin() {
+    stopTimer();
+    const p1Score = Math.max(0, 1000 - p1ElapsedSeconds * 2 - p1WrongCount * 50);
+    const p2Score = Math.max(0, 1000 - elapsedSeconds * 2 - wrongCount * 50);
+    document.getElementById('win-p1-score').textContent    = p1Score;
+    document.getElementById('win-time').textContent        = fmt(elapsedSeconds);
+    document.getElementById('win-wrong').textContent       = wrongCount;
+    document.getElementById('win-score-value').textContent = p2Score;
+    document.getElementById('win-total').textContent       = p1Score + p2Score;
+    document.getElementById('win-screen').classList.add('show');
+  }
+
+  document.getElementById('btn-phase2').addEventListener('click', () => {
+    document.getElementById('p1-score-screen').classList.remove('show');
+    startPhase2();
+  });
+
+  document.getElementById('btn-restart').addEventListener('click', init);
+
+  window.addEventListener('beforeunload', e => {
+    if (startTime && (p1Correct < TOTAL_P1 || p2Correct < TOTAL_P2)) e.preventDefault();
+  });
+
+  init();
+</script>
+</body>
+</html>
